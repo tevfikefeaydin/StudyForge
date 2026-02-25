@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { XPBar } from "@/components/xp-bar";
+import { useAppSettings } from "@/components/app-settings-provider";
 import { Plus, BookOpen, FileText, Code, Loader2 } from "lucide-react";
 
 interface Course {
@@ -22,6 +23,7 @@ interface Course {
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
+  const { text } = useAppSettings();
   const router = useRouter();
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,7 +80,10 @@ export default function DashboardPage() {
     <div className="container max-w-5xl py-8">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold">Welcome back{user?.name ? `, ${user.name}` : ""}!</h1>
+          <h1 className="text-3xl font-bold">
+            {text("Welcome back", "Tekrar hoş geldin")}
+            {user?.name ? `, ${user.name}` : ""}!
+          </h1>
           <div className="mt-2">
             <XPBar xp={(user as Record<string, unknown>)?.xp as number ?? 0} />
           </div>
@@ -87,41 +92,41 @@ export default function DashboardPage() {
           <Link href="/import">
             <Button variant="outline">
               <FileText className="h-4 w-4 mr-2" />
-              Import Notes
+              {text("Import Notes", "Notları İçe Aktar")}
             </Button>
           </Link>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
-                New Course
+                {text("New Course", "Yeni Ders")}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Create New Course</DialogTitle>
+                <DialogTitle>{text("Create New Course", "Yeni Ders Oluştur")}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 mt-2">
                 <div className="space-y-2">
-                  <Label>Title</Label>
+                  <Label>{text("Title", "Başlık")}</Label>
                   <Input
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g., Data Structures & Algorithms"
+                    placeholder={text("e.g., Data Structures & Algorithms", "örnek: Veri Yapıları ve Algoritmalar")}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Description (optional)</Label>
+                  <Label>{text("Description (optional)", "Açıklama (isteğe bağlı)")}</Label>
                   <Textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Brief description of the course"
+                    placeholder={text("Brief description of the course", "Dersin kısa açıklaması")}
                     rows={3}
                   />
                 </div>
                 <Button onClick={createCourse} disabled={creating || !title.trim()} className="w-full">
                   {creating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Create Course
+                  {text("Create Course", "Ders Oluştur")}
                 </Button>
               </div>
             </DialogContent>
@@ -133,8 +138,10 @@ export default function DashboardPage() {
         <Card className="text-center py-12">
           <CardContent>
             <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h2 className="text-xl font-semibold mb-2">No courses yet</h2>
-            <p className="text-muted-foreground mb-4">Create a course and import your notes to get started.</p>
+            <h2 className="text-xl font-semibold mb-2">{text("No courses yet", "Henüz ders yok")}</h2>
+            <p className="text-muted-foreground mb-4">
+              {text("Create a course and import your notes to get started.", "Başlamak için bir ders oluşturup notlarını içe aktar.")}
+            </p>
           </CardContent>
         </Card>
       ) : (
@@ -152,11 +159,11 @@ export default function DashboardPage() {
                   <div className="flex gap-4 text-sm text-muted-foreground">
                     <span className="flex items-center gap-1">
                       <BookOpen className="h-3.5 w-3.5" />
-                      {course._count.sections} sections
+                      {course._count.sections} {text("sections", "bölüm")}
                     </span>
                     <span className="flex items-center gap-1">
                       <Code className="h-3.5 w-3.5" />
-                      {course._count.chunks} chunks
+                      {course._count.chunks} {text("chunks", "parça")}
                     </span>
                   </div>
                 </CardContent>

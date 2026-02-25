@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { useAppSettings } from "@/components/app-settings-provider";
 import { ChevronRight } from "lucide-react";
 
 interface Section {
@@ -20,10 +21,18 @@ interface CourseMapProps {
   courseId: string;
 }
 
-function masteryColor(mastery: number): string {
-  if (mastery >= 70) return "bg-emerald-500";
-  if (mastery >= 30) return "bg-yellow-500";
-  return "bg-red-500";
+// Tailwind JIT needs full static class strings — never interpolate dynamically.
+// The Progress component renders an inner <div> for the indicator bar.
+const masteryClasses: Record<string, string> = {
+  emerald: "[&>div]:bg-emerald-500",
+  yellow: "[&>div]:bg-yellow-500",
+  red: "[&>div]:bg-red-500",
+};
+
+function masteryIndicator(mastery: number): string {
+  if (mastery >= 70) return masteryClasses.emerald;
+  if (mastery >= 30) return masteryClasses.yellow;
+  return masteryClasses.red;
 }
 
 function SectionNode({
@@ -50,7 +59,7 @@ function SectionNode({
         <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
         <span className="flex-1 text-sm">{section.title}</span>
         <div className="flex items-center gap-2 w-32">
-          <Progress value={mastery} className={`h-2 flex-1 [&>div]:${masteryColor(mastery)}`} />
+          <Progress value={mastery} className={`h-2 flex-1 ${masteryIndicator(mastery)}`} />
           <Badge variant="outline" className="text-xs w-12 justify-center">
             {mastery}%
           </Badge>
@@ -68,7 +77,7 @@ function SectionNode({
         <div className="flex items-center gap-3 flex-1">
           <span className="font-medium text-sm">{section.title}</span>
           <div className="flex items-center gap-2 w-32 ml-auto mr-4">
-            <Progress value={mastery} className={`h-2 flex-1 [&>div]:${masteryColor(mastery)}`} />
+            <Progress value={mastery} className={`h-2 flex-1 ${masteryIndicator(mastery)}`} />
             <Badge variant="outline" className="text-xs w-12 justify-center">
               {mastery}%
             </Badge>
@@ -91,10 +100,11 @@ function SectionNode({
 }
 
 export function CourseMap({ sections, progress, courseId }: CourseMapProps) {
+  const { text } = useAppSettings();
   if (sections.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
-        <p>No sections yet. Import some notes to get started!</p>
+        <p>{text("No sections yet. Import some notes to get started!", "Henüz bölüm yok. Başlamak için notlarını içe aktar!")}</p>
       </div>
     );
   }

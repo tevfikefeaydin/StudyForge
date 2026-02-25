@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { useAppSettings } from "@/components/app-settings-provider";
 import { CheckCircle, XCircle, Zap } from "lucide-react";
 
 interface GeneratedQuestion {
@@ -33,6 +34,7 @@ interface QuizProps {
 }
 
 export function Quiz({ question, onSubmit, feedback, loading }: QuizProps) {
+  const { text } = useAppSettings();
   const [selected, setSelected] = useState<string>("");
   const [textAnswer, setTextAnswer] = useState("");
 
@@ -50,12 +52,12 @@ export function Quiz({ question, onSubmit, feedback, loading }: QuizProps) {
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <Badge variant={question.difficulty === "hard" ? "destructive" : question.difficulty === "easy" ? "secondary" : "default"}>
-          {question.difficulty}
+          {question.difficulty === "easy" ? text("Easy", "Kolay") : question.difficulty === "hard" ? text("Hard", "Zor") : text("Medium", "Orta")}
         </Badge>
-        <Badge variant="outline">{isMCQ ? "Multiple Choice" : "Short Answer"}</Badge>
+        <Badge variant="outline">{isMCQ ? text("Multiple Choice", "Çoktan Seçmeli") : text("Short Answer", "Kısa Cevap")}</Badge>
       </div>
 
-      <div className="prose prose-sm max-w-none">
+      <div className="prose prose-sm dark:prose-invert max-w-none">
         <p className="text-base font-medium whitespace-pre-wrap">{question.question}</p>
       </div>
 
@@ -80,7 +82,7 @@ export function Quiz({ question, onSubmit, feedback, loading }: QuizProps) {
         <Textarea
           value={textAnswer}
           onChange={(e) => setTextAnswer(e.target.value)}
-          placeholder="Type your answer..."
+          placeholder={text("Type your answer...", "Cevabınızı yazın...")}
           rows={4}
           disabled={!!feedback}
         />
@@ -91,12 +93,12 @@ export function Quiz({ question, onSubmit, feedback, loading }: QuizProps) {
           onClick={handleSubmit}
           disabled={loading || (isMCQ ? !selected : !textAnswer.trim())}
         >
-          {loading ? "Grading..." : "Submit Answer"}
+          {loading ? text("Grading...", "Değerlendiriliyor...") : text("Submit Answer", "Cevabı Gönder")}
         </Button>
       )}
 
       {feedback && (
-        <Card className={feedback.correct ? "border-emerald-500 bg-emerald-50" : "border-red-500 bg-red-50"}>
+        <Card className={feedback.correct ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30" : "border-red-500 bg-red-50 dark:bg-red-900/30"}>
           <CardContent className="pt-4">
             <div className="flex items-start gap-3">
               {feedback.correct ? (
@@ -105,7 +107,7 @@ export function Quiz({ question, onSubmit, feedback, loading }: QuizProps) {
                 <XCircle className="h-5 w-5 text-red-600 mt-0.5" />
               )}
               <div className="flex-1">
-                <p className="font-medium">{feedback.correct ? "Correct!" : "Incorrect"}</p>
+                <p className="font-medium">{feedback.correct ? text("Correct!", "Doğru!") : text("Incorrect", "Yanlış")}</p>
                 <p className="text-sm mt-1 text-muted-foreground">{feedback.feedback}</p>
                 {feedback.xpEarned > 0 && (
                   <div className="flex items-center gap-1 mt-2 text-yellow-600 xp-animate">

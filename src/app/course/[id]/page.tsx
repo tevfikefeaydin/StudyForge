@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CourseMap } from "@/components/course-map";
+import { useAppSettings } from "@/components/app-settings-provider";
 import { ArrowLeft, Upload, Loader2 } from "lucide-react";
 
 interface Section {
@@ -27,6 +28,7 @@ interface CourseData {
 export default function CoursePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { status } = useSession();
+  const { text } = useAppSettings();
   const router = useRouter();
   const [data, setData] = useState<CourseData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -64,7 +66,7 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
         <Link href="/dashboard">
           <Button variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 mr-1" />
-            Back
+            {text("Back", "Geri")}
           </Button>
         </Link>
       </div>
@@ -79,14 +81,14 @@ export default function CoursePage({ params }: { params: Promise<{ id: string }>
         <Link href={`/import?courseId=${id}`}>
           <Button variant="outline">
             <Upload className="h-4 w-4 mr-2" />
-            Import Notes
+            {text("Import Notes", "Notları İçe Aktar")}
           </Button>
         </Link>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Course Map</CardTitle>
+          <CardTitle>{text("Course Map", "Ders Haritası")}</CardTitle>
         </CardHeader>
         <CardContent>
           <CourseMap sections={data.sections} progress={data.progress} courseId={id} />

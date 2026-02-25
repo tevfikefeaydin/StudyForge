@@ -1,6 +1,7 @@
 "use client";
 
 import { Progress } from "@/components/ui/progress";
+import { useAppSettings } from "@/components/app-settings-provider";
 import { Star } from "lucide-react";
 
 interface XPBarProps {
@@ -8,6 +9,7 @@ interface XPBarProps {
 }
 
 export function XPBar({ xp }: XPBarProps) {
+  const { text } = useAppSettings();
   const level = Math.floor(xp / 100);
   const progressToNext = xp % 100;
 
@@ -20,7 +22,7 @@ export function XPBar({ xp }: XPBarProps) {
       <div className="flex-1 max-w-xs">
         <Progress value={progressToNext} className="h-3" />
       </div>
-      <span className="text-sm text-muted-foreground">{xp} XP</span>
+      <span className="text-sm text-muted-foreground">{xp} {text("XP", "XP")}</span>
     </div>
   );
 }

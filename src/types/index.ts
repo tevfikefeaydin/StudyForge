@@ -32,6 +32,7 @@ export interface PracticeRequest {
 }
 
 export interface GeneratedQuestion {
+  attemptId?: string;
   question: string;
   answer?: string;
   options?: string[];
@@ -41,14 +42,9 @@ export interface GeneratedQuestion {
 }
 
 export interface GradeRequest {
-  attemptId?: string;
-  sectionId: string;
-  mode: string;
-  question: string;
-  correctAnswer: string;
-  userAnswer: string;
-  chunkIds: string[];
-  difficulty: string;
+  attemptId: string;
+  userAnswer?: string;
+  quality?: number;
   timeMs?: number;
 }
 

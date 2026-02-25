@@ -7,14 +7,10 @@ import { recordAttempt } from "@/lib/gamification";
 import { z } from "zod";
 
 const bodySchema = z.object({
-  sectionId: z.string().min(1),
-  mode: z.string().min(1),
-  question: z.string().min(1).max(10000),
-  correctAnswer: z.string().max(10000),
-  userAnswer: z.string().min(1).max(10000),
-  chunkIds: z.array(z.string()),
-  difficulty: z.enum(["easy", "medium", "hard"]).default("medium"),
-  timeMs: z.number().int().positive().optional(),
+  attemptId: z.string().min(1),
+  userAnswer: z.string().max(10000).optional(),
+  quality: z.number().int().min(0).max(5).optional(),
+  timeMs: z.number().int().positive().max(1000 * 60 * 60).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -30,35 +26,65 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
     }
 
-    const { sectionId, mode, question, correctAnswer, userAnswer, chunkIds, difficulty, timeMs } = parsed.data;
+    const { attemptId, timeMs } = parsed.data;
     const userId = (session.user as { id: string }).id;
 
-    // Verify section access
-    const section = await prisma.section.findUnique({
-      where: { id: sectionId },
-      include: { course: true },
+    const attempt = await prisma.attempt.findFirst({
+      where: { id: attemptId, userId },
+      include: { section: { include: { course: true } } },
     });
-    if (!section || section.course.userId !== userId) {
-      return NextResponse.json({ error: "Section not found" }, { status: 404 });
+    if (!attempt) {
+      return NextResponse.json({ error: "Attempt not found" }, { status: 404 });
+    }
+    if (attempt.section.course.userId !== userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+    if (attempt.correct !== null) {
+      return NextResponse.json({ error: "Attempt already graded" }, { status: 409 });
     }
 
-    // Grade the answer
-    let gradeResult: { correct: boolean; score: number; feedback: string };
+    const correctAnswer = attempt.answer ?? "";
+    let submittedAnswer = parsed.data.userAnswer?.trim() ?? "";
 
-    if (mode === "quiz" && correctAnswer.match(/^[A-D]\)/)) {
+    // Grade the answer on server-side canonical attempt data.
+    let gradeResult: { correct: boolean; score: number; feedback: string };
+    if (attempt.mode === "flashcard") {
+      const qualityFromAnswer = submittedAnswer.toLowerCase() === "unknown" ? 1 : 4;
+      const quality = parsed.data.quality ?? qualityFromAnswer;
+      const score = Math.max(0, Math.min(1, quality / 5));
+      const correct = quality >= 3;
+      submittedAnswer = submittedAnswer || (correct ? "known" : "unknown");
+      gradeResult = {
+        correct,
+        score,
+        feedback: correct ? "Good recall. Keep the streak going." : "Needs review. This card was queued again.",
+      };
+    } else if (!submittedAnswer) {
+      return NextResponse.json({ error: "Answer is required" }, { status: 400 });
+    } else if (attempt.mode === "quiz" && correctAnswer.match(/^[A-D]\)/)) {
       // MCQ: simple letter comparison
       const correctLetter = correctAnswer.charAt(0).toUpperCase();
-      const userLetter = userAnswer.trim().charAt(0).toUpperCase();
+      const userLetter = submittedAnswer.charAt(0).toUpperCase();
       const correct = correctLetter === userLetter;
       gradeResult = {
         correct,
         score: correct ? 1 : 0,
         feedback: correct ? "Correct!" : `Incorrect. The correct answer is ${correctAnswer}`,
       };
+    } else if (!correctAnswer.trim()) {
+      gradeResult = {
+        correct: false,
+        score: 0,
+        feedback: "Reference answer is missing for this question.",
+      };
     } else {
-      // Short answer / code: use LLM grading
+      // Short answer / code: use LLM grading with ownership-verified chunks.
       const chunks = await prisma.chunk.findMany({
-        where: { id: { in: chunkIds } },
+        where: {
+          id: { in: attempt.chunkIds },
+          course: { userId },
+        },
+        select: { id: true, content: true, type: true, language: true },
       });
       const retrievedChunks = chunks.map((c) => ({
         id: c.id,
@@ -67,24 +93,30 @@ export async function POST(req: NextRequest) {
         language: c.language ?? undefined,
         similarity: 1,
       }));
-      gradeResult = await gradeAnswer(question, correctAnswer, userAnswer, retrievedChunks);
+      gradeResult = await gradeAnswer(attempt.question, correctAnswer, submittedAnswer, retrievedChunks);
     }
 
-    // Record attempt and update gamification
-    const result = await recordAttempt({
-      userId,
-      sectionId,
-      mode,
-      question,
-      answer: correctAnswer,
-      userAnswer,
-      correct: gradeResult.correct,
-      score: gradeResult.score,
-      difficulty,
-      timeMs,
-      chunkIds,
-      feedback: gradeResult.feedback,
-    });
+    let result;
+    try {
+      // Finalize attempt and update gamification atomically.
+      result = await recordAttempt({
+        attemptId: attempt.id,
+        userId,
+        sectionId: attempt.sectionId,
+        mode: attempt.mode,
+        userAnswer: submittedAnswer,
+        correct: gradeResult.correct,
+        score: gradeResult.score,
+        difficulty: attempt.difficulty,
+        timeMs,
+        feedback: gradeResult.feedback,
+      });
+    } catch (recordError) {
+      if (recordError instanceof Error && recordError.message === "ATTEMPT_ALREADY_GRADED") {
+        return NextResponse.json({ error: "Attempt already graded" }, { status: 409 });
+      }
+      throw recordError;
+    }
 
     return NextResponse.json({
       correct: gradeResult.correct,

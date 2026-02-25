@@ -7,9 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Quiz } from "./quiz";
 import { Flashcard } from "./flashcard";
 import { CodeStudy } from "./code-study";
+import { useAppSettings } from "@/components/app-settings-provider";
 import { Loader2 } from "lucide-react";
 
 interface GeneratedQuestion {
+  attemptId: string;
   question: string;
   answer?: string;
   options?: string[];
@@ -33,6 +35,7 @@ interface PracticeModeProps {
 }
 
 export function PracticeMode({ sectionId, sectionTitle }: PracticeModeProps) {
+  const { text } = useAppSettings();
   const [mode, setMode] = useState("quiz");
   const [difficulty, setDifficulty] = useState("medium");
   const [subMode, setSubMode] = useState("explain");
@@ -72,7 +75,7 @@ export function PracticeMode({ sectionId, sectionTitle }: PracticeModeProps) {
 
   const submitAnswer = useCallback(
     async (userAnswer: string) => {
-      if (!question) return;
+      if (!question?.attemptId) return;
       setGrading(true);
 
       try {
@@ -80,13 +83,8 @@ export function PracticeMode({ sectionId, sectionTitle }: PracticeModeProps) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            sectionId,
-            mode,
-            question: question.question,
-            correctAnswer: question.answer || "",
+            attemptId: question.attemptId,
             userAnswer,
-            chunkIds: question.chunkIds,
-            difficulty: question.difficulty,
             timeMs: Date.now() - startTime,
           }),
         });
@@ -100,35 +98,31 @@ export function PracticeMode({ sectionId, sectionTitle }: PracticeModeProps) {
         setGrading(false);
       }
     },
-    [question, sectionId, mode, startTime]
+    [question, startTime]
   );
 
   const handleFlashcardResult = useCallback(async (quality: number) => {
-    if (!question) return;
+    if (!question?.attemptId) return;
     // Record as attempt
     await fetch("/api/practice/grade", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        sectionId,
-        mode: "flashcard",
-        question: question.question,
-        correctAnswer: question.answer || "",
-        userAnswer: quality >= 3 ? question.answer || "known" : "unknown",
-        chunkIds: question.chunkIds,
-        difficulty: question.difficulty,
+        attemptId: question.attemptId,
+        quality,
+        userAnswer: quality >= 3 ? "known" : "unknown",
         timeMs: Date.now() - startTime,
       }),
     });
-  }, [question, sectionId, startTime]);
+  }, [question, startTime]);
 
   return (
     <div className="space-y-6">
       <Tabs value={mode} onValueChange={(v) => { setMode(v); setQuestion(null); setFeedback(null); }}>
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="quiz">Quiz</TabsTrigger>
-          <TabsTrigger value="flashcard">Flashcards</TabsTrigger>
-          <TabsTrigger value="code_study">Code Study</TabsTrigger>
+          <TabsTrigger value="quiz">{text("Quiz", "Test")}</TabsTrigger>
+          <TabsTrigger value="flashcard">{text("Flashcards", "Bilgi Kartları")}</TabsTrigger>
+          <TabsTrigger value="code_study">{text("Code Study", "Kod Çalışma")}</TabsTrigger>
         </TabsList>
 
         <div className="flex items-center gap-3 mt-4">
@@ -137,9 +131,9 @@ export function PracticeMode({ sectionId, sectionTitle }: PracticeModeProps) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="easy">Easy</SelectItem>
-              <SelectItem value="medium">Medium</SelectItem>
-              <SelectItem value="hard">Hard</SelectItem>
+              <SelectItem value="easy">{text("Easy", "Kolay")}</SelectItem>
+              <SelectItem value="medium">{text("Medium", "Orta")}</SelectItem>
+              <SelectItem value="hard">{text("Hard", "Zor")}</SelectItem>
             </SelectContent>
           </Select>
 
@@ -149,17 +143,17 @@ export function PracticeMode({ sectionId, sectionTitle }: PracticeModeProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="explain">Explain Code</SelectItem>
-                <SelectItem value="predict">Predict Output</SelectItem>
-                <SelectItem value="bug">Find Bug</SelectItem>
-                <SelectItem value="fill">Fill Missing</SelectItem>
+                <SelectItem value="explain">{text("Explain Code", "Kodu Açıkla")}</SelectItem>
+                <SelectItem value="predict">{text("Predict Output", "Çıktısını Tahmin Et")}</SelectItem>
+                <SelectItem value="bug">{text("Find Bug", "Hatayı Bul")}</SelectItem>
+                <SelectItem value="fill">{text("Fill Missing", "Eksiği Tamamla")}</SelectItem>
               </SelectContent>
             </Select>
           )}
 
           <Button onClick={generate} disabled={generating}>
             {generating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {question ? "Next Question" : "Generate"}
+            {question ? text("Next Question", "Sonraki Soru") : text("Generate", "Üret")}
           </Button>
         </div>
 
@@ -182,7 +176,7 @@ export function PracticeMode({ sectionId, sectionTitle }: PracticeModeProps) {
 
       {!question && !generating && (
         <div className="text-center py-8 text-muted-foreground">
-          <p>Select a mode and click Generate to start practicing &quot;{sectionTitle}&quot;</p>
+          <p>{text("Select a mode and click Generate to start practicing", "Pratiğe başlamak için bir mod seçip Üret'e tıklayın")} &quot;{sectionTitle}&quot;</p>
         </div>
       )}
     </div>

@@ -19,7 +19,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem("studyforge:theme");if(t==="dark"||(!t&&matchMedia("(prefers-color-scheme:dark)").matches))document.documentElement.classList.add("dark");var l=localStorage.getItem("studyforge:locale");if(l==="tr")document.documentElement.lang="tr"}catch(e){}`,
+          }}
+        />
+      </head>
       <body className={inter.className}>
         <Providers>
           <Navbar />

@@ -63,7 +63,32 @@ export async function POST(req: NextRequest) {
         break;
     }
 
-    return NextResponse.json({ question });
+    const allowedChunkIds = new Set([...textChunks, ...codeChunks].map((c) => c.id));
+    const chunkIds = [...new Set((question.chunkIds || []).filter((id) => allowedChunkIds.has(id)))];
+    const normalizedDifficulty = ["easy", "medium", "hard"].includes(question.difficulty)
+      ? question.difficulty
+      : difficulty;
+
+    const pendingAttempt = await prisma.attempt.create({
+      data: {
+        userId,
+        sectionId,
+        mode,
+        question: question.question,
+        answer: question.answer ?? "",
+        difficulty: normalizedDifficulty,
+        chunkIds,
+      },
+    });
+
+    return NextResponse.json({
+      question: {
+        ...question,
+        difficulty: normalizedDifficulty,
+        chunkIds,
+        attemptId: pendingAttempt.id,
+      },
+    });
   } catch (error) {
     console.error("Practice generate error:", error);
     return NextResponse.json({ error: "Failed to generate question" }, { status: 500 });

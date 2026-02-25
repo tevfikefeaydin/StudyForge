@@ -39,7 +39,7 @@ export async function updateMastery(
   sectionId: string
 ): Promise<number> {
   const recentAttempts = await prisma.attempt.findMany({
-    where: { userId, sectionId },
+    where: { userId, sectionId, correct: { not: null } },
     orderBy: { createdAt: "desc" },
     take: 20,
   });
@@ -76,17 +76,18 @@ export async function updateMastery(
  * Record an attempt and update XP, streak, mastery, and review queue.
  */
 export async function recordAttempt(params: {
+  attemptId?: string;
   userId: string;
   sectionId: string;
   mode: string;
-  question: string;
-  answer: string;
+  question?: string;
+  answer?: string;
   userAnswer: string;
   correct: boolean;
   score: number;
   difficulty: string;
   timeMs?: number;
-  chunkIds: string[];
+  chunkIds?: string[];
   feedback: string;
 }): Promise<{ xpEarned: number; newStreak: number; mastery: number }> {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: params.userId } });
@@ -112,57 +113,91 @@ export async function recordAttempt(params: {
     timeMs: params.timeMs,
   });
 
-  // Create attempt
-  const attempt = await prisma.attempt.create({
-    data: {
-      userId: params.userId,
-      sectionId: params.sectionId,
-      mode: params.mode,
-      question: params.question,
-      answer: params.answer,
-      userAnswer: params.userAnswer,
-      correct: params.correct,
-      score: params.score,
-      difficulty: params.difficulty,
-      timeMs: params.timeMs,
-      chunkIds: params.chunkIds,
-      feedback: params.feedback,
-    },
-  });
+  let attemptId = params.attemptId;
+  let attemptSectionId = params.sectionId;
 
-  // Update user XP and streak
-  await prisma.user.update({
-    where: { id: params.userId },
-    data: {
-      xp: { increment: xpEarned },
-      streak: newStreak,
-      lastActiveAt: now,
-    },
-  });
+  await prisma.$transaction(async (tx) => {
+    if (params.attemptId) {
+      const existing = await tx.attempt.findFirst({
+        where: { id: params.attemptId, userId: params.userId },
+        select: { id: true, sectionId: true, correct: true },
+      });
+      if (!existing) {
+        throw new Error("ATTEMPT_NOT_FOUND");
+      }
+      if (existing.correct !== null) {
+        throw new Error("ATTEMPT_ALREADY_GRADED");
+      }
 
-  // Update progress XP
-  await prisma.progress.upsert({
-    where: { userId_sectionId: { userId: params.userId, sectionId: params.sectionId } },
-    update: { xpEarned: { increment: xpEarned } },
-    create: { userId: params.userId, sectionId: params.sectionId, xpEarned },
-  });
+      attemptId = existing.id;
+      attemptSectionId = existing.sectionId;
 
-  // Add to review queue if wrong
-  if (!params.correct) {
-    await prisma.reviewQueue.create({
+      await tx.attempt.update({
+        where: { id: existing.id },
+        data: {
+          userAnswer: params.userAnswer,
+          correct: params.correct,
+          score: params.score,
+          difficulty: params.difficulty,
+          timeMs: params.timeMs,
+          feedback: params.feedback,
+        },
+      });
+    } else {
+      const created = await tx.attempt.create({
+        data: {
+          userId: params.userId,
+          sectionId: params.sectionId,
+          mode: params.mode,
+          question: params.question ?? "",
+          answer: params.answer,
+          userAnswer: params.userAnswer,
+          correct: params.correct,
+          score: params.score,
+          difficulty: params.difficulty,
+          timeMs: params.timeMs,
+          chunkIds: params.chunkIds ?? [],
+          feedback: params.feedback,
+        },
+      });
+      attemptId = created.id;
+      attemptSectionId = created.sectionId;
+    }
+
+    // Update user XP and streak
+    await tx.user.update({
+      where: { id: params.userId },
       data: {
-        userId: params.userId,
-        attemptId: attempt.id,
-        nextReview: now,
-        interval: 1,
-        easeFactor: 2.5,
-        repetitions: 0,
+        xp: { increment: xpEarned },
+        streak: newStreak,
+        lastActiveAt: now,
       },
     });
-  }
+
+    // Update progress XP
+    await tx.progress.upsert({
+      where: { userId_sectionId: { userId: params.userId, sectionId: attemptSectionId } },
+      update: { xpEarned: { increment: xpEarned } },
+      create: { userId: params.userId, sectionId: attemptSectionId, xpEarned },
+    });
+
+    // Add to review queue if wrong
+    if (!params.correct && attemptId) {
+      await tx.reviewQueue.create({
+        data: {
+          userId: params.userId,
+          attemptId,
+          nextReview: now,
+          interval: 1,
+          easeFactor: 2.5,
+          repetitions: 0,
+        },
+      });
+    }
+  });
 
   // Update mastery
-  const mastery = await updateMastery(params.userId, params.sectionId);
+  const mastery = await updateMastery(params.userId, attemptSectionId);
 
   return { xpEarned, newStreak, mastery };
 }

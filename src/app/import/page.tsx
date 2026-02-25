@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAppSettings } from "@/components/app-settings-provider";
 import { ArrowLeft, Upload, FileText, Code, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 
 interface Course {
@@ -34,6 +35,7 @@ export default function ImportPage() {
 
 function ImportPageInner() {
   const { status } = useSession();
+  const { text } = useAppSettings();
   const router = useRouter();
   const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -76,7 +78,7 @@ function ImportPageInner() {
     const f = e.target.files?.[0];
     if (f) {
       if (f.size > MAX_FILE_SIZE) {
-        setResult({ success: false, message: "File too large. Maximum 20MB." });
+        setResult({ success: false, message: text("File too large. Maximum 20MB.", "Dosya çok büyük. Maksimum 20MB.") });
         return;
       }
       setFile(f);
@@ -97,14 +99,20 @@ function ImportPageInner() {
       const res = await fetch("/api/import/pdf", { method: "POST", body: formData });
       const data = await res.json();
       if (res.ok) {
-        setResult({ success: true, message: `Imported ${data.sections} sections and ${data.chunks} chunks.` });
+        setResult({
+          success: true,
+          message: text(
+            `Imported ${data.sections} sections and ${data.chunks} chunks.`,
+            `${data.sections} bölüm ve ${data.chunks} parça içe aktarıldı.`
+          ),
+        });
         setFile(null);
         if (fileInputRef.current) fileInputRef.current.value = "";
       } else {
-        setResult({ success: false, message: data.error || "Import failed" });
+        setResult({ success: false, message: data.error || text("Import failed", "İçe aktarma başarısız") });
       }
     } catch {
-      setResult({ success: false, message: "Network error" });
+      setResult({ success: false, message: text("Network error", "Ağ hatası") });
     } finally {
       setLoading(false);
     }
@@ -127,14 +135,20 @@ function ImportPageInner() {
       });
       const data = await res.json();
       if (res.ok) {
-        setResult({ success: true, message: `Imported ${data.sections} sections and ${data.chunks} chunks.` });
+        setResult({
+          success: true,
+          message: text(
+            `Imported ${data.sections} sections and ${data.chunks} chunks.`,
+            `${data.sections} bölüm ve ${data.chunks} parça içe aktarıldı.`
+          ),
+        });
         setTextContent("");
         setTextTitle("");
       } else {
-        setResult({ success: false, message: data.error || "Import failed" });
+        setResult({ success: false, message: data.error || text("Import failed", "İçe aktarma başarısız") });
       }
     } catch {
-      setResult({ success: false, message: "Network error" });
+      setResult({ success: false, message: text("Network error", "Ağ hatası") });
     } finally {
       setLoading(false);
     }
@@ -158,14 +172,20 @@ function ImportPageInner() {
       });
       const data = await res.json();
       if (res.ok) {
-        setResult({ success: true, message: `Imported ${data.chunks} code chunks (${data.language}).` });
+        setResult({
+          success: true,
+          message: text(
+            `Imported ${data.chunks} code chunks (${data.language}).`,
+            `${data.chunks} kod parçası (${data.language}) içe aktarıldı.`
+          ),
+        });
         setCodeContent("");
         setCodeTitle("");
       } else {
-        setResult({ success: false, message: data.error || "Import failed" });
+        setResult({ success: false, message: data.error || text("Import failed", "İçe aktarma başarısız") });
       }
     } catch {
-      setResult({ success: false, message: "Network error" });
+      setResult({ success: false, message: text("Network error", "Ağ hatası") });
     } finally {
       setLoading(false);
     }
@@ -185,24 +205,24 @@ function ImportPageInner() {
         <Link href="/dashboard">
           <Button variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 mr-1" />
-            Back
+            {text("Back", "Geri")}
           </Button>
         </Link>
-        <h1 className="text-2xl font-bold">Import Notes</h1>
+        <h1 className="text-2xl font-bold">{text("Import Notes", "Notları İçe Aktar")}</h1>
       </div>
 
       {/* Course selector */}
       <div className="mb-6">
-        <Label className="mb-2 block">Target Course</Label>
+        <Label className="mb-2 block">{text("Target Course", "Hedef Ders")}</Label>
         {courses.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No courses found.{" "}
-            <Link href="/dashboard" className="underline">Create one first</Link>.
+            {text("No courses found.", "Ders bulunamadı.")}{" "}
+            <Link href="/dashboard" className="underline">{text("Create one first", "Önce bir ders oluştur")}</Link>.
           </p>
         ) : (
           <Select value={selectedCourse} onValueChange={setSelectedCourse}>
             <SelectTrigger className="w-full max-w-sm">
-              <SelectValue placeholder="Select a course" />
+              <SelectValue placeholder={text("Select a course", "Bir ders seçin")} />
             </SelectTrigger>
             <SelectContent>
               {courses.map((c) => (
@@ -216,7 +236,7 @@ function ImportPageInner() {
       {/* Result message */}
       {result && (
         <div className={`flex items-center gap-2 p-3 rounded-md mb-4 ${
-          result.success ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"
+          result.success ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300" : "bg-red-50 text-red-800 dark:bg-red-900/30 dark:text-red-300"
         }`}>
           {result.success ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
           <span className="text-sm">{result.message}</span>
@@ -231,18 +251,18 @@ function ImportPageInner() {
           </TabsTrigger>
           <TabsTrigger value="text">
             <FileText className="h-4 w-4 mr-2" />
-            Text
+            {text("Text", "Metin")}
           </TabsTrigger>
           <TabsTrigger value="code">
             <Code className="h-4 w-4 mr-2" />
-            Code
+            {text("Code", "Kod")}
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="pdf">
           <Card>
             <CardHeader>
-              <CardTitle>Upload PDF</CardTitle>
+              <CardTitle>{text("Upload PDF", "PDF Yükle")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div
@@ -251,7 +271,7 @@ function ImportPageInner() {
               >
                 <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                 <p className="text-sm text-muted-foreground">
-                  {file ? file.name : "Click to select a PDF file (max 20MB)"}
+                  {file ? file.name : text("Click to select a PDF file (max 20MB)", "Bir PDF dosyası seçmek için tıklayın (maks 20MB)")}
                 </p>
                 <input
                   ref={fileInputRef}
@@ -263,7 +283,7 @@ function ImportPageInner() {
               </div>
               <Button onClick={importPDF} disabled={loading || !file || !selectedCourse} className="w-full">
                 {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Import PDF
+                {text("Import PDF", "PDF İçe Aktar")}
               </Button>
             </CardContent>
           </Card>
@@ -272,29 +292,32 @@ function ImportPageInner() {
         <TabsContent value="text">
           <Card>
             <CardHeader>
-              <CardTitle>Paste Text Notes</CardTitle>
+              <CardTitle>{text("Paste Text Notes", "Metin Notları Yapıştır")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Title (optional)</Label>
+                <Label>{text("Title (optional)", "Başlık (isteğe bağlı)")}</Label>
                 <Input
                   value={textTitle}
                   onChange={(e) => setTextTitle(e.target.value)}
-                  placeholder="e.g., Chapter 5 - Sorting Algorithms"
+                  placeholder={text("e.g., Chapter 5 - Sorting Algorithms", "örnek: Bölüm 5 - Sıralama Algoritmaları")}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Content</Label>
+                <Label>{text("Content", "İçerik")}</Label>
                 <Textarea
                   value={textContent}
                   onChange={(e) => setTextContent(e.target.value)}
-                  placeholder="Paste your notes here... Supports Markdown headings (#, ##, ###) and code fences."
+                  placeholder={text(
+                    "Paste your notes here... Supports Markdown headings (#, ##, ###) and code fences.",
+                    "Notlarınızı buraya yapıştırın... Markdown başlıkları (#, ##, ###) ve kod bloklarını destekler."
+                  )}
                   rows={12}
                 />
               </div>
               <Button onClick={importText} disabled={loading || !textContent.trim() || !selectedCourse} className="w-full">
                 {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Import Text
+                {text("Import Text", "Metni İçe Aktar")}
               </Button>
             </CardContent>
           </Card>
@@ -303,26 +326,26 @@ function ImportPageInner() {
         <TabsContent value="code">
           <Card>
             <CardHeader>
-              <CardTitle>Paste Code</CardTitle>
+              <CardTitle>{text("Paste Code", "Kod Yapıştır")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Title (optional)</Label>
+                  <Label>{text("Title (optional)", "Başlık (isteğe bağlı)")}</Label>
                   <Input
                     value={codeTitle}
                     onChange={(e) => setCodeTitle(e.target.value)}
-                    placeholder="e.g., Binary Search Implementation"
+                    placeholder={text("e.g., Binary Search Implementation", "örnek: Binary Search Uygulaması")}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Language (auto-detected if empty)</Label>
+                  <Label>{text("Language (auto-detected if empty)", "Dil (boş bırakılırsa otomatik algılanır)")}</Label>
                   <Select value={codeLanguage} onValueChange={setCodeLanguage}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Auto-detect" />
+                      <SelectValue placeholder={text("Auto-detect", "Otomatik algıla")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="auto">Auto-detect</SelectItem>
+                      <SelectItem value="auto">{text("Auto-detect", "Otomatik algıla")}</SelectItem>
                       <SelectItem value="python">Python</SelectItem>
                       <SelectItem value="javascript">JavaScript</SelectItem>
                       <SelectItem value="typescript">TypeScript</SelectItem>
@@ -337,18 +360,18 @@ function ImportPageInner() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Code</Label>
+                <Label>{text("Code", "Kod")}</Label>
                 <Textarea
                   value={codeContent}
                   onChange={(e) => setCodeContent(e.target.value)}
-                  placeholder="Paste your code here..."
+                  placeholder={text("Paste your code here...", "Kodunuzu buraya yapıştırın...")}
                   rows={12}
                   className="font-mono text-sm"
                 />
               </div>
               <Button onClick={importCode} disabled={loading || !codeContent.trim() || !selectedCourse} className="w-full">
                 {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Import Code
+                {text("Import Code", "Kodu İçe Aktar")}
               </Button>
             </CardContent>
           </Card>

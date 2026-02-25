@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { extractHeadings } from "@/lib/headings";
+import { extractHeadings, splitContentByHeadings } from "@/lib/headings";
 import { splitTextAndCode } from "@/lib/chunking";
 import { embedAndStoreChunks } from "@/lib/rag";
 import type { SectionNode } from "@/types";
@@ -60,10 +60,20 @@ export async function POST(req: NextRequest) {
       headingTree[0].title = title;
     }
     const sections = await saveSections(courseId, headingTree, null);
+    const sectionBlocks = splitContentByHeadings(content);
 
-    // Chunk
-    const defaultSectionId = sections[0]?.id;
-    const chunks = splitTextAndCode(content, defaultSectionId);
+    // Chunk per section block to preserve section-level retrieval.
+    const chunks: ReturnType<typeof splitTextAndCode> = [];
+    if (sections.length === sectionBlocks.length) {
+      for (let i = 0; i < sections.length; i++) {
+        const sectionId = sections[i].id;
+        chunks.push(...splitTextAndCode(sectionBlocks[i].content, sectionId));
+      }
+    } else {
+      // Defensive fallback if heading extraction order diverges unexpectedly.
+      const defaultSectionId = sections[0]?.id;
+      chunks.push(...splitTextAndCode(content, defaultSectionId));
+    }
 
     // Embed and store
     const chunkIds = await embedAndStoreChunks(courseId, chunks);
