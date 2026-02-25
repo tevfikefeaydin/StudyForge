@@ -4,6 +4,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -121,6 +122,12 @@ export default function LoginPage() {
           </form>
         </CardContent>
       </Card>
+      <Link
+        href="/"
+        className="mt-4 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        {text("← Back to Home", "← Ana Sayfaya Dön")}
+      </Link>
     </div>
   );
 }

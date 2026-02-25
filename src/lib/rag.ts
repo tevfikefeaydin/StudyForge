@@ -2,6 +2,15 @@ import { prisma } from "./prisma";
 import { generateEmbedding, generateEmbeddings } from "./embeddings";
 import type { ChunkInput, RetrievedChunk } from "@/types";
 
+/** Fisher-Yates shuffle (in-place) */
+function shuffle<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 /**
  * Store chunks with embeddings in the database.
  * Uses pgvector for PostgreSQL vector storage.
@@ -58,6 +67,9 @@ export async function retrieveContext(
   options?: { topKText?: number; topKCode?: number }
 ): Promise<{ textChunks: RetrievedChunk[]; codeChunks: RetrievedChunk[] }> {
   const { topKText = 5, topKCode = 3 } = options ?? {};
+  // Oversample to increase variety — fetch 2x, shuffle, then take topK
+  const fetchText = topKText * 2;
+  const fetchCode = topKCode * 2;
 
   // Try vector similarity search first
   let textChunks: { id: string; content: string; type: string; language: string | null; similarity: number }[] = [];
@@ -83,7 +95,7 @@ export async function retrieveContext(
        LIMIT $3`,
       embeddingStr,
       courseId,
-      topKText
+      fetchText
     );
 
     codeChunks = await prisma.$queryRawUnsafe(
@@ -98,7 +110,7 @@ export async function retrieveContext(
        LIMIT $3`,
       embeddingStr,
       courseId,
-      topKCode
+      fetchCode
     );
   } catch {
     // Embedding generation failed — fall through to fallback
@@ -133,20 +145,22 @@ export async function retrieveContext(
     };
   }
 
-  return {
-    textChunks: textChunks.map((c) => ({
-      id: c.id,
-      content: c.content,
-      type: c.type as "text" | "code",
-      language: c.language ?? undefined,
-      similarity: Number(c.similarity),
-    })),
-    codeChunks: codeChunks.map((c) => ({
-      id: c.id,
-      content: c.content,
-      type: c.type as "text" | "code",
-      language: c.language ?? undefined,
-      similarity: Number(c.similarity),
-    })),
-  };
+  // Shuffle oversampled results and take only topK for variety
+  const mappedText = shuffle(textChunks.map((c) => ({
+    id: c.id,
+    content: c.content,
+    type: c.type as "text" | "code",
+    language: c.language ?? undefined,
+    similarity: Number(c.similarity),
+  }))).slice(0, topKText);
+
+  const mappedCode = shuffle(codeChunks.map((c) => ({
+    id: c.id,
+    content: c.content,
+    type: c.type as "text" | "code",
+    language: c.language ?? undefined,
+    similarity: Number(c.similarity),
+  }))).slice(0, topKCode);
+
+  return { textChunks: mappedText, codeChunks: mappedCode };
 }

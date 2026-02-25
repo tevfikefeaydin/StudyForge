@@ -35,7 +35,7 @@ interface PracticeModeProps {
 }
 
 export function PracticeMode({ sectionId, sectionTitle }: PracticeModeProps) {
-  const { text } = useAppSettings();
+  const { text, locale } = useAppSettings();
   const [mode, setMode] = useState("quiz");
   const [difficulty, setDifficulty] = useState("medium");
   const [subMode, setSubMode] = useState("explain");
@@ -59,6 +59,7 @@ export function PracticeMode({ sectionId, sectionTitle }: PracticeModeProps) {
           sectionId,
           difficulty,
           subMode: mode === "code_study" ? subMode : undefined,
+          locale,
         }),
       });
 
@@ -71,7 +72,7 @@ export function PracticeMode({ sectionId, sectionTitle }: PracticeModeProps) {
     } finally {
       setGenerating(false);
     }
-  }, [mode, sectionId, difficulty, subMode]);
+  }, [mode, sectionId, difficulty, subMode, locale]);
 
   const submitAnswer = useCallback(
     async (userAnswer: string) => {
@@ -86,6 +87,7 @@ export function PracticeMode({ sectionId, sectionTitle }: PracticeModeProps) {
             attemptId: question.attemptId,
             userAnswer,
             timeMs: Date.now() - startTime,
+            locale,
           }),
         });
 
@@ -98,7 +100,7 @@ export function PracticeMode({ sectionId, sectionTitle }: PracticeModeProps) {
         setGrading(false);
       }
     },
-    [question, startTime]
+    [question, startTime, locale]
   );
 
   const handleFlashcardResult = useCallback(async (quality: number) => {
@@ -112,9 +114,10 @@ export function PracticeMode({ sectionId, sectionTitle }: PracticeModeProps) {
         quality,
         userAnswer: quality >= 3 ? "known" : "unknown",
         timeMs: Date.now() - startTime,
+        locale,
       }),
     });
-  }, [question, startTime]);
+  }, [question, startTime, locale]);
 
   return (
     <div className="space-y-6">

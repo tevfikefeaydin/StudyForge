@@ -11,6 +11,7 @@ const bodySchema = z.object({
   userAnswer: z.string().max(10000).optional(),
   quality: z.number().int().min(0).max(5).optional(),
   timeMs: z.number().int().positive().max(1000 * 60 * 60).optional(),
+  locale: z.enum(["en", "tr"]).default("en"),
 });
 
 export async function POST(req: NextRequest) {
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
     }
 
-    const { attemptId, timeMs } = parsed.data;
+    const { attemptId, timeMs, locale } = parsed.data;
     const userId = (session.user as { id: string }).id;
 
     const attempt = await prisma.attempt.findFirst({
@@ -57,7 +58,9 @@ export async function POST(req: NextRequest) {
       gradeResult = {
         correct,
         score,
-        feedback: correct ? "Good recall. Keep the streak going." : "Needs review. This card was queued again.",
+        feedback: correct
+          ? (locale === "tr" ? "İyi hatırlama. Seriyi devam ettir." : "Good recall. Keep the streak going.")
+          : (locale === "tr" ? "Tekrar gerekli. Bu kart tekrar sıraya alındı." : "Needs review. This card was queued again."),
       };
     } else if (!submittedAnswer) {
       return NextResponse.json({ error: "Answer is required" }, { status: 400 });
@@ -69,13 +72,17 @@ export async function POST(req: NextRequest) {
       gradeResult = {
         correct,
         score: correct ? 1 : 0,
-        feedback: correct ? "Correct!" : `Incorrect. The correct answer is ${correctAnswer}`,
+        feedback: correct
+          ? (locale === "tr" ? "Doğru!" : "Correct!")
+          : (locale === "tr" ? `Yanlış. Doğru cevap: ${correctAnswer}` : `Incorrect. The correct answer is ${correctAnswer}`),
       };
     } else if (!correctAnswer.trim()) {
       gradeResult = {
         correct: false,
         score: 0,
-        feedback: "Reference answer is missing for this question.",
+        feedback: locale === "tr"
+          ? "Bu soru için referans cevap eksik."
+          : "Reference answer is missing for this question.",
       };
     } else {
       // Short answer / code: use LLM grading with ownership-verified chunks.
@@ -93,7 +100,7 @@ export async function POST(req: NextRequest) {
         language: c.language ?? undefined,
         similarity: 1,
       }));
-      gradeResult = await gradeAnswer(attempt.question, correctAnswer, submittedAnswer, retrievedChunks);
+      gradeResult = await gradeAnswer(attempt.question, correctAnswer, submittedAnswer, retrievedChunks, locale);
     }
 
     let result;

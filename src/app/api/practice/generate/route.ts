@@ -11,6 +11,7 @@ const bodySchema = z.object({
   sectionId: z.string().min(1),
   difficulty: z.enum(["easy", "medium", "hard"]).default("medium"),
   subMode: z.enum(["explain", "predict", "bug", "fill"]).optional(),
+  locale: z.enum(["en", "tr"]).default("en"),
 });
 
 export async function POST(req: NextRequest) {
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
     }
 
-    const { mode, sectionId, difficulty, subMode } = parsed.data;
+    const { mode, sectionId, difficulty, subMode, locale } = parsed.data;
 
     const section = await prisma.section.findUnique({
       where: { id: sectionId },
@@ -53,13 +54,13 @@ export async function POST(req: NextRequest) {
     let question;
     switch (mode) {
       case "quiz":
-        question = await generateQuizQuestion(textChunks, codeChunks, difficulty, section.title);
+        question = await generateQuizQuestion(textChunks, codeChunks, difficulty, section.title, locale);
         break;
       case "flashcard":
-        question = await generateFlashcard(textChunks, codeChunks, section.title);
+        question = await generateFlashcard(textChunks, codeChunks, section.title, locale);
         break;
       case "code_study":
-        question = await generateCodeStudy(textChunks, codeChunks, subMode || "explain", section.title);
+        question = await generateCodeStudy(textChunks, codeChunks, subMode || "explain", section.title, locale);
         break;
     }
 
