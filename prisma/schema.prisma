@@ -1,10 +1,13 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  extensions = [vector]
 }
 
 model User {
@@ -34,12 +37,12 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String?
-  access_token      String?
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String?
+  id_token          String? @db.Text
   session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -97,20 +100,21 @@ model Section {
 }
 
 model Chunk {
-  id         String  @id @default(cuid())
-  courseId    String
-  sectionId  String?
-  type       String
-  content    String
-  language   String?
-  metadata   String?
-  tokenCount Int     @default(0)
-  embedding  String?
+  id        String @id @default(cuid())
+  courseId  String
+  sectionId String?
+  type      String
+  content   String @db.Text
+  language  String?
+  metadata  Json?
+  tokenCount Int   @default(0)
+
+  embedding Unsupported("vector(1536)")?
 
   createdAt DateTime @default(now())
 
-  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  section Section? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  section   Section? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
 
   @@index([courseId])
   @@index([sectionId])
@@ -135,15 +139,15 @@ model Attempt {
   userId     String
   sectionId  String
   mode       String
-  question   String
-  answer     String?
-  userAnswer String?
+  question   String   @db.Text
+  answer     String?  @db.Text
+  userAnswer String?  @db.Text
   correct    Boolean?
   score      Float?
   difficulty String   @default("medium")
   timeMs     Int?
-  chunkIds   String   @default("[]")
-  feedback   String?
+  chunkIds   String[]
+  feedback   String?  @db.Text
   createdAt  DateTime @default(now())
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)

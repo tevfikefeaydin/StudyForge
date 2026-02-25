@@ -125,7 +125,7 @@ export async function recordAttempt(params: {
       score: params.score,
       difficulty: params.difficulty,
       timeMs: params.timeMs,
-      chunkIds: JSON.stringify(params.chunkIds),
+      chunkIds: params.chunkIds,
       feedback: params.feedback,
     },
   });

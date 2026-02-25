@@ -8,6 +8,7 @@ import { embedAndStoreChunks } from "@/lib/rag";
 import type { SectionNode } from "@/types";
 import fs from "fs/promises";
 import path from "path";
+import os from "os";
 
 const MAX_FILE_SIZE = (parseInt(process.env.MAX_FILE_SIZE_MB || "20") || 20) * 1024 * 1024;
 
@@ -70,11 +71,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
-    // Save file
-    const uploadsDir = path.join(process.cwd(), "uploads");
-    await fs.mkdir(uploadsDir, { recursive: true });
+    // Save file to /tmp (works on Vercel serverless)
+    const tmpDir = os.tmpdir();
     const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
-    const filePath = path.join(uploadsDir, fileName);
+    const filePath = path.join(tmpDir, fileName);
     const buffer = Buffer.from(await file.arrayBuffer());
     await fs.writeFile(filePath, buffer);
 
@@ -95,6 +95,9 @@ export async function POST(req: NextRequest) {
       const pdf = (await import("pdf-parse")).default;
       const parsed = await pdf(buffer);
       const text = parsed.text;
+
+      // Clean up temp file
+      await fs.unlink(filePath).catch(() => {});
 
       if (!text.trim()) {
         await prisma.upload.update({ where: { id: upload.id }, data: { status: "error", error: "No text extracted from PDF" } });

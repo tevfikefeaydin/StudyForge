@@ -412,7 +412,7 @@ print("Level:", level_order(root))    # [[1], [2, 3], [4, 5]]`,
         content: chunk.content,
         language: "language" in chunk ? (chunk as { language: string }).language : null,
         tokenCount: Math.ceil(chunk.content.length / 4),
-        metadata: "{}",
+        metadata: {},
       },
     });
   }

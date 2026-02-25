@@ -129,8 +129,9 @@ Open **http://localhost:3000** and sign in:
 ### Environment Variables
 
 ```env
-# Database (SQLite for dev, PostgreSQL for prod)
-DATABASE_URL="file:./dev.db"
+# Database — PostgreSQL with pgvector (Neon or Supabase free tier)
+DATABASE_URL="postgresql://user:password@host/dbname?sslmode=require"
+DIRECT_URL="postgresql://user:password@host/dbname?sslmode=require"
 
 # NextAuth
 NEXTAUTH_URL="http://localhost:3000"
@@ -152,6 +153,44 @@ MAX_FILE_SIZE_MB=20
 ```
 
 > Without API keys the app runs in **demo mode** — imports still work with hash-based pseudo-embeddings, questions are generated directly from chunk content, and grading uses keyword overlap.
+
+## Deploy to Vercel
+
+### 1. Create a PostgreSQL database with pgvector
+
+**Neon** (recommended, free tier):
+1. Go to [neon.tech](https://neon.tech) and create a project
+2. pgvector is enabled by default
+3. Copy the connection string from the dashboard
+
+**Supabase** (alternative):
+1. Go to [supabase.com](https://supabase.com) and create a project
+2. Run `CREATE EXTENSION IF NOT EXISTS vector;` in the SQL editor
+3. Copy the connection string from Settings > Database
+
+### 2. Deploy
+
+1. Push this repo to GitHub
+2. Go to [vercel.com/new](https://vercel.com/new) and import the repository
+3. Add these environment variables in Vercel's dashboard:
+
+| Variable | Value |
+|----------|-------|
+| `DATABASE_URL` | Pooled connection string from Neon/Supabase |
+| `DIRECT_URL` | Direct (non-pooled) connection string |
+| `NEXTAUTH_URL` | Your Vercel domain (e.g. `https://studyforge.vercel.app`) |
+| `NEXTAUTH_SECRET` | Run `openssl rand -base64 32` |
+| `LLM_API_KEY` | Your OpenAI API key |
+| `EMBEDDINGS_API_KEY` | Your OpenAI API key |
+
+4. Deploy — Vercel runs `prisma generate && next build` automatically
+5. After first deploy, push the schema to the database:
+
+```bash
+# From your local machine with DATABASE_URL set
+npx prisma db push
+npx tsx prisma/seed.ts  # optional: seed demo data
+```
 
 ## API Reference
 
@@ -179,19 +218,6 @@ MAX_FILE_SIZE_MB=20
 - **Attempt** — individual practice attempts with scoring
 - **Progress** — per-section mastery and XP
 - **ReviewQueue** — SM-2 spaced repetition scheduling
-
-## Switching to PostgreSQL + pgvector
-
-For production with real vector search:
-
-1. Install PostgreSQL and the pgvector extension
-2. Update `prisma/schema.prisma`:
-   - Change provider to `"postgresql"`
-   - Add `extensions = [vector]` and `previewFeatures = ["postgresqlExtensions"]`
-   - Change `embedding` field to `Unsupported("vector(1536)")?`
-   - Restore `@db.Text` annotations and `String[]` for chunkIds
-3. Update `src/lib/rag.ts` to use pgvector SQL queries (see git history for the original implementation)
-4. Update `DATABASE_URL` in `.env`
 
 ## License
 

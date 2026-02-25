@@ -2,20 +2,9 @@ import { prisma } from "./prisma";
 import { generateEmbedding, generateEmbeddings } from "./embeddings";
 import type { ChunkInput, RetrievedChunk } from "@/types";
 
-function cosineSimilarity(a: number[], b: number[]): number {
-  let dot = 0, magA = 0, magB = 0;
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i];
-    magA += a[i] * a[i];
-    magB += b[i] * b[i];
-  }
-  const denom = Math.sqrt(magA) * Math.sqrt(magB);
-  return denom === 0 ? 0 : dot / denom;
-}
-
 /**
  * Store chunks with embeddings in the database.
- * Embeddings are stored as JSON string in the embedding column.
+ * Uses pgvector for PostgreSQL vector storage.
  */
 export async function embedAndStoreChunks(
   courseId: string,
@@ -38,11 +27,18 @@ export async function embedAndStoreChunks(
         type: chunk.type,
         content: chunk.content,
         language: chunk.language,
-        metadata: chunk.metadata ? JSON.stringify(chunk.metadata) : "{}",
+        metadata: (chunk.metadata as object) ?? {},
         tokenCount,
-        embedding: JSON.stringify(embeddings[i]),
       },
     });
+
+    // Store embedding via raw SQL (pgvector)
+    const embeddingStr = `[${embeddings[i].join(",")}]`;
+    await prisma.$executeRawUnsafe(
+      `UPDATE "Chunk" SET embedding = $1::vector WHERE id = $2`,
+      embeddingStr,
+      created.id
+    );
 
     ids.push(created.id);
   }
@@ -51,7 +47,7 @@ export async function embedAndStoreChunks(
 }
 
 /**
- * Retrieve relevant chunks using in-memory cosine similarity.
+ * Retrieve relevant chunks using pgvector cosine similarity.
  * Always filters by courseId, optionally by sectionId.
  * Returns both text and code chunks separately.
  */
@@ -62,55 +58,61 @@ export async function retrieveContext(
   options?: { topKText?: number; topKCode?: number }
 ): Promise<{ textChunks: RetrievedChunk[]; codeChunks: RetrievedChunk[] }> {
   const { topKText = 5, topKCode = 3 } = options ?? {};
-
   const queryEmbedding = await generateEmbedding(query);
+  const embeddingStr = `[${queryEmbedding.join(",")}]`;
 
-  // Fetch all chunks for the course (with optional section filter)
-  const where: { courseId: string; embedding: { not: null }; sectionId?: string } = {
+  const sectionFilter = sectionId
+    ? `AND c."sectionId" = '${sectionId}'`
+    : "";
+
+  const textChunks = await prisma.$queryRawUnsafe<
+    { id: string; content: string; type: string; language: string | null; similarity: number }[]
+  >(
+    `SELECT c.id, c.content, c.type, c.language,
+            1 - (c.embedding <=> $1::vector) as similarity
+     FROM "Chunk" c
+     WHERE c."courseId" = $2
+       AND c.type = 'text'
+       AND c.embedding IS NOT NULL
+       ${sectionFilter}
+     ORDER BY c.embedding <=> $1::vector
+     LIMIT $3`,
+    embeddingStr,
     courseId,
-    embedding: { not: null },
+    topKText
+  );
+
+  const codeChunks = await prisma.$queryRawUnsafe<
+    { id: string; content: string; type: string; language: string | null; similarity: number }[]
+  >(
+    `SELECT c.id, c.content, c.type, c.language,
+            1 - (c.embedding <=> $1::vector) as similarity
+     FROM "Chunk" c
+     WHERE c."courseId" = $2
+       AND c.type = 'code'
+       AND c.embedding IS NOT NULL
+       ${sectionFilter}
+     ORDER BY c.embedding <=> $1::vector
+     LIMIT $3`,
+    embeddingStr,
+    courseId,
+    topKCode
+  );
+
+  return {
+    textChunks: textChunks.map((c) => ({
+      id: c.id,
+      content: c.content,
+      type: c.type as "text" | "code",
+      language: c.language ?? undefined,
+      similarity: Number(c.similarity),
+    })),
+    codeChunks: codeChunks.map((c) => ({
+      id: c.id,
+      content: c.content,
+      type: c.type as "text" | "code",
+      language: c.language ?? undefined,
+      similarity: Number(c.similarity),
+    })),
   };
-  if (sectionId) where.sectionId = sectionId;
-
-  const allChunks = await prisma.chunk.findMany({ where });
-
-  // Score each chunk by cosine similarity
-  const scored = allChunks
-    .map((c) => {
-      let similarity = 0;
-      if (c.embedding) {
-        try {
-          const emb = JSON.parse(c.embedding) as number[];
-          similarity = cosineSimilarity(queryEmbedding, emb);
-        } catch {
-          // bad embedding data
-        }
-      }
-      return { ...c, similarity };
-    })
-    .sort((a, b) => b.similarity - a.similarity);
-
-  const textChunks: RetrievedChunk[] = scored
-    .filter((c) => c.type === "text")
-    .slice(0, topKText)
-    .map((c) => ({
-      id: c.id,
-      content: c.content,
-      type: "text",
-      language: c.language ?? undefined,
-      similarity: c.similarity,
-    }));
-
-  const codeChunks: RetrievedChunk[] = scored
-    .filter((c) => c.type === "code")
-    .slice(0, topKCode)
-    .map((c) => ({
-      id: c.id,
-      content: c.content,
-      type: "code",
-      language: c.language ?? undefined,
-      similarity: c.similarity,
-    }));
-
-  return { textChunks, codeChunks };
 }
