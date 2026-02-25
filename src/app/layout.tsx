@@ -9,6 +9,12 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "StudyForge",
   description: "AI-powered gamified study platform",
+  icons: { icon: "/logo-icon.png" },
+  openGraph: {
+    title: "StudyForge",
+    description: "AI-powered gamified study platform",
+    images: ["/logo.png"],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

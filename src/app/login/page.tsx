@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { BookOpen, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -45,9 +46,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="p-3 rounded-full bg-primary/10">
-              <BookOpen className="h-8 w-8 text-primary" />
-            </div>
+            <Image src="/logo.png" alt="StudyForge" width={200} height={120} priority />
           </div>
           <CardTitle className="text-2xl">StudyForge</CardTitle>
           <CardDescription>

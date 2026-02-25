@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
-import { Flame, BookOpen, LogOut } from "lucide-react";
+import { Flame, LogOut } from "lucide-react";
 
 export function Navbar() {
   const { data: session } = useSession();
@@ -16,7 +17,7 @@ export function Navbar() {
     <nav className="h-16 border-b bg-slate-900 text-white flex items-center px-6 justify-between">
       <div className="flex items-center gap-6">
         <Link href="/dashboard" className="flex items-center gap-2 font-bold text-lg">
-          <BookOpen className="h-6 w-6 text-emerald-400" />
+          <Image src="/logo-icon.png" alt="StudyForge" width={32} height={32} />
           StudyForge
         </Link>
         <Link href="/dashboard" className="text-sm text-slate-300 hover:text-white transition">
