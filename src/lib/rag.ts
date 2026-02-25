@@ -58,46 +58,80 @@ export async function retrieveContext(
   options?: { topKText?: number; topKCode?: number }
 ): Promise<{ textChunks: RetrievedChunk[]; codeChunks: RetrievedChunk[] }> {
   const { topKText = 5, topKCode = 3 } = options ?? {};
-  const queryEmbedding = await generateEmbedding(query);
-  const embeddingStr = `[${queryEmbedding.join(",")}]`;
+
+  // Try vector similarity search first
+  let textChunks: { id: string; content: string; type: string; language: string | null; similarity: number }[] = [];
+  let codeChunks: { id: string; content: string; type: string; language: string | null; similarity: number }[] = [];
 
   const sectionFilter = sectionId
     ? `AND c."sectionId" = '${sectionId}'`
     : "";
 
-  const textChunks = await prisma.$queryRawUnsafe<
-    { id: string; content: string; type: string; language: string | null; similarity: number }[]
-  >(
-    `SELECT c.id, c.content, c.type, c.language,
-            1 - (c.embedding <=> $1::vector) as similarity
-     FROM "Chunk" c
-     WHERE c."courseId" = $2
-       AND c.type = 'text'
-       AND c.embedding IS NOT NULL
-       ${sectionFilter}
-     ORDER BY c.embedding <=> $1::vector
-     LIMIT $3`,
-    embeddingStr,
-    courseId,
-    topKText
-  );
+  try {
+    const queryEmbedding = await generateEmbedding(query);
+    const embeddingStr = `[${queryEmbedding.join(",")}]`;
 
-  const codeChunks = await prisma.$queryRawUnsafe<
-    { id: string; content: string; type: string; language: string | null; similarity: number }[]
-  >(
-    `SELECT c.id, c.content, c.type, c.language,
-            1 - (c.embedding <=> $1::vector) as similarity
-     FROM "Chunk" c
-     WHERE c."courseId" = $2
-       AND c.type = 'code'
-       AND c.embedding IS NOT NULL
-       ${sectionFilter}
-     ORDER BY c.embedding <=> $1::vector
-     LIMIT $3`,
-    embeddingStr,
-    courseId,
-    topKCode
-  );
+    textChunks = await prisma.$queryRawUnsafe(
+      `SELECT c.id, c.content, c.type, c.language,
+              1 - (c.embedding <=> $1::vector) as similarity
+       FROM "Chunk" c
+       WHERE c."courseId" = $2
+         AND c.type = 'text'
+         AND c.embedding IS NOT NULL
+         ${sectionFilter}
+       ORDER BY c.embedding <=> $1::vector
+       LIMIT $3`,
+      embeddingStr,
+      courseId,
+      topKText
+    );
+
+    codeChunks = await prisma.$queryRawUnsafe(
+      `SELECT c.id, c.content, c.type, c.language,
+              1 - (c.embedding <=> $1::vector) as similarity
+       FROM "Chunk" c
+       WHERE c."courseId" = $2
+         AND c.type = 'code'
+         AND c.embedding IS NOT NULL
+         ${sectionFilter}
+       ORDER BY c.embedding <=> $1::vector
+       LIMIT $3`,
+      embeddingStr,
+      courseId,
+      topKCode
+    );
+  } catch {
+    // Embedding generation failed — fall through to fallback
+  }
+
+  // Fallback: if no embedded chunks found, return chunks directly from section
+  if (textChunks.length === 0 && codeChunks.length === 0) {
+    const where: Record<string, unknown> = { courseId };
+    if (sectionId) where.sectionId = sectionId;
+
+    const fallbackText = await prisma.chunk.findMany({
+      where: { ...where, type: "text" },
+      take: topKText,
+      select: { id: true, content: true, type: true, language: true },
+    });
+
+    const fallbackCode = await prisma.chunk.findMany({
+      where: { ...where, type: "code" },
+      take: topKCode,
+      select: { id: true, content: true, type: true, language: true },
+    });
+
+    return {
+      textChunks: fallbackText.map((c) => ({
+        id: c.id, content: c.content, type: c.type as "text" | "code",
+        language: c.language ?? undefined, similarity: 0.5,
+      })),
+      codeChunks: fallbackCode.map((c) => ({
+        id: c.id, content: c.content, type: c.type as "text" | "code",
+        language: c.language ?? undefined, similarity: 0.5,
+      })),
+    };
+  }
 
   return {
     textChunks: textChunks.map((c) => ({
